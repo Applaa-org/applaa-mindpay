@@ -3,18 +3,31 @@ import { Link } from '@tanstack/react-router';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Plus, Calendar, DollarSign, AlertCircle, CheckCircle } from 'lucide-react';
+import { Plus, Calendar, DollarSign, AlertCircle, CheckCircle, Edit, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { mockBills, categories } from '@/data/bills';
 import { Bill } from '@/data/bills';
 import Header from '@/components/Header';
 import { MadeWithApplaa } from '@/components/made-with-applaa';
-import { showSuccess } from '@/utils/toast';
+import { showSuccess, showError } from '@/utils/toast';
+import { EditBillModal } from '@/components/EditBillModal';
+import { DeleteBillModal } from '@/components/DeleteBillModal';
 
 const Index = () => {
   const [bills, setBills] = useState<Bill[]>(mockBills);
   const [totalAmount, setTotalAmount] = useState(0);
   const [nextDueDate, setNextDueDate] = useState<string>('');
+  const [editingBill, setEditingBill] = useState<Bill | null>(null);
+  const [deletingBill, setDeletingBill] = useState<Bill | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Simulate loading data from database
+    setTimeout(() => {
+      setBills(mockBills);
+      setIsLoading(false);
+    }, 1000);
+  }, []);
 
   useEffect(() => {
     // Calculate total pending amount
@@ -54,6 +67,48 @@ const Index = () => {
       currency: 'INR'
     }).format(amount);
   };
+
+  const handleEditBill = (bill: Bill) => {
+    setEditingBill(bill);
+  };
+
+  const handleDeleteBill = (bill: Bill) => {
+    setDeletingBill(bill);
+  };
+
+  const handleUpdateBill = (updatedBill: Bill) => {
+    setBills(prevBills => 
+      prevBills.map(bill => 
+        bill.id === updatedBill.id ? updatedBill : bill
+      )
+    );
+    showSuccess('Bill updated successfully ✅');
+  };
+
+  const handleDeleteConfirm = (billId: string) => {
+    setBills(prevBills => prevBills.filter(bill => bill.id !== billId));
+    showSuccess('Bill deleted successfully ✅');
+  };
+
+  const handleMarkAsPaid = (billId: string) => {
+    setBills(prevBills => 
+      prevBills.map(bill => 
+        bill.id === billId ? { ...bill, status: 'paid' } : bill
+      )
+    );
+    showSuccess('Bill marked as paid ✅');
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading your bills...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white">
@@ -145,14 +200,35 @@ const Index = () => {
                       </div>
                       <div className="text-right">
                         <div className="text-xl font-bold text-gray-900">{formatCurrency(bill.amount)}</div>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          className="mt-2 border-blue-200 text-blue-600 hover:bg-blue-50"
-                          onClick={() => showSuccess('Bill marked as paid!')}
-                        >
-                          Mark Paid
-                        </Button>
+                        <div className="flex space-x-2 mt-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="border-blue-200 text-blue-600 hover:bg-blue-50"
+                            onClick={() => handleMarkAsPaid(bill.id)}
+                            disabled={bill.status === 'paid'}
+                          >
+                            {bill.status === 'paid' ? 'Paid' : 'Mark Paid'}
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="border-gray-300 text-gray-700 hover:bg-gray-50"
+                            onClick={() => handleEditBill(bill)}
+                          >
+                            <Edit size={14} className="mr-1" />
+                            Edit
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="border-red-300 text-red-600 hover:bg-red-50"
+                            onClick={() => handleDeleteBill(bill)}
+                          >
+                            <Trash2 size={14} className="mr-1" />
+                            Delete
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </CardContent>
@@ -164,6 +240,25 @@ const Index = () => {
       </main>
 
       <MadeWithApplaa />
+      
+      {/* Modals */}
+      {editingBill && (
+        <EditBillModal
+          bill={editingBill}
+          isOpen={!!editingBill}
+          onClose={() => setEditingBill(null)}
+          onUpdate={handleUpdateBill}
+        />
+      )}
+      
+      {deletingBill && (
+        <DeleteBillModal
+          bill={deletingBill}
+          isOpen={!!deletingBill}
+          onClose={() => setDeletingBill(null)}
+          onDelete={handleDeleteConfirm}
+        />
+      )}
     </div>
   );
 };

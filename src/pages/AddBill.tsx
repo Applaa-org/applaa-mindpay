@@ -6,12 +6,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft, Upload, Sparkles } from 'lucide-react';
+import { ArrowLeft, Upload, Sparkles, Database } from 'lucide-react';
 import { categories } from '@/data/bills';
 import { cn } from '@/lib/utils';
 import Header from '@/components/Header';
 import { MadeWithApplaa } from '@/components/made-with-applaa';
 import { showSuccess, showError } from '@/utils/toast';
+import { DatabaseConnectionModal } from '@/components/DatabaseConnectionModal';
+import { DatabaseService, createDatabaseService } from '@/components/DatabaseService';
 
 const AddBill = () => {
   const [formData, setFormData] = useState({
@@ -24,6 +26,9 @@ const AddBill = () => {
   });
 
   const [isParsing, setIsParsing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showDatabaseModal, setShowDatabaseModal] = useState(false);
+  const [databaseService, setDatabaseService] = useState<DatabaseService | null>(null);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({
@@ -117,7 +122,7 @@ const AddBill = () => {
     }, 1500);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!formData.name || !formData.amount || !formData.dueDate || !formData.category) {
@@ -125,19 +130,59 @@ const AddBill = () => {
       return;
     }
 
-    // Here you would typically save to Google Sheets
-    // For now, we'll just show a success message
-    showSuccess('Bill added successfully!');
-    
-    // Reset form
-    setFormData({
-      name: '',
-      amount: '',
-      dueDate: '',
-      category: '',
-      description: '',
-      aiText: ''
-    });
+    setIsSubmitting(true);
+
+    try {
+      const newBill = {
+        name: formData.name,
+        amount: parseFloat(formData.amount),
+        dueDate: formData.dueDate,
+        category: formData.category as 'electricity' | 'water' | 'emi' | 'loan' | 'credit-card' | 'internet' | 'phone' | 'insurance' | 'other',
+        description: formData.description,
+        status: 'pending' as const
+      };
+
+      if (databaseService) {
+        // Save to database
+        await databaseService.addBill(newBill);
+        showSuccess('Bill added successfully and saved to database ✅');
+      } else {
+        // Save to local storage (fallback)
+        const existingBills = JSON.parse(localStorage.getItem('bills') || '[]');
+        const billWithId = {
+          ...newBill,
+          id: Date.now().toString(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        existingBills.push(billWithId);
+        localStorage.setItem('bills', JSON.stringify(existingBills));
+        showSuccess('Bill added successfully ✅');
+      }
+
+      // Reset form
+      setFormData({
+        name: '',
+        amount: '',
+        dueDate: '',
+        category: '',
+        description: '',
+        aiText: ''
+      });
+
+      // Navigate back to dashboard after a short delay
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 1500);
+    } catch (error) {
+      showError('Failed to add bill. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDatabaseConnect = (service: DatabaseService) => {
+    setDatabaseService(service);
   };
 
   return (
@@ -150,6 +195,29 @@ const AddBill = () => {
             <ArrowLeft size={16} className="mr-2" />
             Back to Dashboard
           </Link>
+
+          {/* Database Connection Banner */}
+          {!databaseService && (
+            <Card className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <Database className="h-5 w-5 text-blue-600" />
+                    <div>
+                      <h3 className="font-semibold text-blue-900">Connect to Database</h3>
+                      <p className="text-sm text-blue-700">Save your bills to Google Sheets or Airtable for persistent storage</p>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={() => setShowDatabaseModal(true)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    Connect
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
             <CardHeader>
@@ -270,9 +338,17 @@ const AddBill = () => {
                 <div className="flex space-x-4">
                   <Button
                     type="submit"
+                    disabled={isSubmitting}
                     className="flex-1 bg-blue-600 hover:bg-blue-700 text-white transition-all duration-200 hover:scale-105"
                   >
-                    Add Bill
+                    {isSubmitting ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Adding...
+                      </>
+                    ) : (
+                      'Add Bill'
+                    )}
                   </Button>
                   <Link to="/" className="flex-1">
                     <Button
@@ -291,6 +367,13 @@ const AddBill = () => {
       </main>
 
       <MadeWithApplaa />
+      
+      {/* Database Connection Modal */}
+      <DatabaseConnectionModal
+        isOpen={showDatabaseModal}
+        onClose={() => setShowDatabaseModal(false)}
+        onConnect={handleDatabaseConnect}
+      />
     </div>
   );
 };
