@@ -21,7 +21,7 @@ export default function Header() {
               <span className="text-white font-bold text-lg">💡</span>
             </div>
             <span className="text-2xl font-bold bg-gradient-to-r from-blue-500 to-blue-600 bg-clip-text text-transparent">
-              BillSmart
+              BillMind
             </span>
           </Link>
           
